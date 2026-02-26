@@ -46,6 +46,7 @@
 }
 ```
 以上数据均可由你自行决定。
+
 ---
 
 ## 2. 运行逻辑（统一流程）
@@ -204,20 +205,20 @@ pip install -e .
 运行 miku 示例：
 
 ```bash
-python lc_scripts/miku_hdf5_adapter.py \
-  --source ./datasets/miku112/piper_pick_banana_100 \
-  --output_dir ./datasets/miku112/piper_pick_banana_100_v1
+python scripts/miku_hdf5_adapter.py \
+  --source <your original dataset path> \
+  --output_dir <lerobot datasets output path>
 ```
 
 启用指令增强：
 
 ```bash
-python lc_scripts/miku_hdf5_adapter.py \
-  --source ./datasets/miku112/piper_pick_banana_100 \
-  --output_dir ./datasets/miku112/piper_pick_banana_100_v1 \
-  --augment_task_instruction true
+python scripts/miku_hdf5_adapter.py \
+  --source <your original dataset path> \
+  --output_dir <lerobot datasets output path> \
+  --augment_task_instruction tr
 ```
-
+此时需要在`--source <your original dataset path>`目录下创建`tasks_instruction.json`文件。
 ---
 
 ## 9. 常见问题
