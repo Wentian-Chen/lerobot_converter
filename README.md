@@ -14,7 +14,64 @@
 - 迭代式读取数据集进行转换，避免一次性读入内存造成内存爆炸，实现轻量性
 ---
 
-## 1. 架构与职责
+## 目录
+
+- [lerobot\_convertor](#lerobot_convertor)
+  - [目录](#目录)
+  - [1. 安装与使用](#1-安装与使用)
+  - [2. 架构与职责](#2-架构与职责)
+    - [封装好的部分（你不需要改）](#封装好的部分你不需要改)
+    - [需要用户实现的部分（核心）](#需要用户实现的部分核心)
+  - [3. 运行逻辑（统一流程）](#3-运行逻辑统一流程)
+  - [4. 参数配置规范](#4-参数配置规范)
+    - [`ConversionOptions` 字段](#conversionoptions-字段)
+  - [5. feature 对齐规则（最重要）](#5-feature-对齐规则最重要)
+  - [6. 指令增强（VLA 任务）](#6-指令增强vla-任务)
+  - [7. 二次开发位置指南](#7-二次开发位置指南)
+    - [A. 新增你自己的 HDF5 适配器（推荐）](#a-新增你自己的-hdf5-适配器推荐)
+    - [B. 你应该写在哪里](#b-你应该写在哪里)
+  - [8. Miku 案例解读](#8-miku-案例解读)
+    - [已封装部分](#已封装部分)
+    - [Miku 用户实现部分](#miku-用户实现部分)
+  - [9. 数据结构检查工具](#9-数据结构检查工具)
+    - [HDF5 结构检查](#hdf5-结构检查)
+    - [RLDS 结构检查](#rlds-结构检查)
+  - [10. 常见问题](#10-常见问题)
+
+---
+
+## 1. 安装与使用
+
+在项目目录安装（开发模式）：
+
+```bash
+conda create -n lerobot_convertor python=3.8 -y
+conda activate lerobot_convertor
+cd lerobot_convertor/
+pip install -e .
+```
+
+运行 miku 示例：
+
+```bash
+python scripts/miku_hdf5_adapter.py \
+  --source <your original dataset path> \
+  --output_dir <lerobot datasets output path>
+```
+
+启用指令增强：
+
+```bash
+python scripts/miku_hdf5_adapter.py \
+  --source <your original dataset path> \
+  --output_dir <lerobot datasets output path> \
+  --augment_task_instruction tr
+```
+此时需要在`--source <your original dataset path>`目录下创建`tasks_instruction.json`文件。
+
+---
+
+## 2. 架构与职责
 
 ### 封装好的部分（你不需要改）
 
@@ -49,7 +106,7 @@
 
 ---
 
-## 2. 运行逻辑（统一流程）
+## 3. 运行逻辑（统一流程）
 
 `convert()` 的固定执行路径：
 
@@ -62,7 +119,7 @@
 
 ---
 
-## 3. 参数配置规范
+## 4. 参数配置规范
 
 配置定义统一在 `models.py`：
 
@@ -82,7 +139,7 @@
 - `timestamp_key: str` 时间字段名（默认 `timestamp`）
 ---
 
-## 4. feature 对齐规则（最重要）
+## 5. feature 对齐规则（最重要）
 
 `options.features` 中每个 key，必须在每帧 `feature_values` 中出现。
 
@@ -112,7 +169,7 @@
 
 ---
 
-## 5. 指令增强（VLA 任务）
+## 6. 指令增强（VLA 任务）
 
 当 `augment_task_instruction=True`：
 
@@ -150,7 +207,7 @@
 
 ---
 
-## 6. 二次开发位置指南
+## 7. 二次开发位置指南
 
 ### A. 新增你自己的 HDF5 适配器（推荐）
 
@@ -167,7 +224,7 @@
 
 ---
 
-## 7. Miku 案例解读
+## 8. Miku 案例解读
 
 参考文件：`lc_scripts/miku_hdf5_adapter.py`
 
@@ -194,35 +251,40 @@
 
 ---
 
-## 8. 安装与使用
+## 9. 数据结构检查工具
 
-在项目目录安装（开发模式）：
+在编写适配器（Adapter）之前，建议先检查原始数据的结构，以确定 `features` 映射方式。
 
-```bash
-pip install -e .
-```
+### HDF5 结构检查
 
-运行 miku 示例：
+可以使用提供的脚本快速打印 HDF5 树状结构、Dataset 形状及属性：
 
 ```bash
-python scripts/miku_hdf5_adapter.py \
-  --source <your original dataset path> \
-  --output_dir <lerobot datasets output path>
+python scripts/inspect_hdf5.py <your_file.hdf5>
 ```
 
-启用指令增强：
+或在代码中调用：
 
-```bash
-python scripts/miku_hdf5_adapter.py \
-  --source <your original dataset path> \
-  --output_dir <lerobot datasets output path> \
-  --augment_task_instruction tr
+```python
+from lerobot_convertor.utils import print_hdf5_structure
+
+print_hdf5_structure(source="path/to/data.hdf5", max_depth=10)
 ```
-此时需要在`--source <your original dataset path>`目录下创建`tasks_instruction.json`文件。
+
+### RLDS 结构检查
+
+对于 RLDS 格式，可以对迭代器采样打印结构：
+
+```python
+from lerobot_convertor.utils import print_rlds_structure
+
+# source 参数为 RLDS 的数据集迭代对象
+print_rlds_structure(source=dataset_iterable, max_episodes=3)
+```
 
 ---
 
-## 9. 常见问题
+## 10. 常见问题
 
 - **Q: 为什么 frame 校验报 key 缺失？**
   - A: `feature_values` 没覆盖 `features` 的全部 key。

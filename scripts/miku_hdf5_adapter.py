@@ -213,17 +213,15 @@ class MikuSingleEpisodeHdf5Convertor(Hdf5ToLeRobotConvertor):
 
 @dataclass
 class MikuHdf5AdapterConfig(DatasetsConvertorConfig):
-    source: str = "./datasets/miku112/piper_pick_banana_100/"
-    output_dir: str = "datasets/miku112/piper_pick_banana_100_v1"
-    dataset_name: str = "converted_dataset"
+    source: str = ""
+    output_dir: str = ""
+    dataset_name: str = ""
     fps: int = 10
-    robot_type: str | None = "piper"
+    robot_type: str | None = ""
     use_videos: bool = True
     features: dict[str, dict[str, Any]] | None = None
-    default_task: str = "Grasp the yellow banana and place it inside the bowl"
-    augment_task_instruction: bool = True
-    task_key: str = "task"
-    timestamp_key: str = "timestamp"
+    default_task: str = ""
+    augment_task_instruction: bool = False
 
 @draccus.wrap()
 def run_miku_hdf5_adapter(cfg: MikuHdf5AdapterConfig):
