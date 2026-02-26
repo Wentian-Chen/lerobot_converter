@@ -27,6 +27,7 @@
     - [`ConversionOptions` 字段](#conversionoptions-字段)
   - [5. feature 对齐规则（最重要）](#5-feature-对齐规则最重要)
   - [6. 指令增强（VLA 任务）](#6-指令增强vla-任务)
+    - [任务选择工具函数使用](#任务选择工具函数使用)
   - [7. 二次开发位置指南](#7-二次开发位置指南)
     - [A. 新增你自己的 HDF5 适配器（推荐）](#a-新增你自己的-hdf5-适配器推荐)
     - [B. 你应该写在哪里](#b-你应该写在哪里)
@@ -204,6 +205,45 @@ python scripts/miku_hdf5_adapter.py \
   "task_instructions": ["...", "..."]
 }
 ```
+
+### 任务选择工具函数使用
+
+推荐在自定义 Adapter 中复用 `utils.py` 里的两个函数：
+
+- `load_task_instructions(source_root)`：读取并解析 `tasks_instruction.json`
+- `select_task_for_episode(options, source_root, instructions)`：按配置返回 episode task
+
+```python
+from lerobot_convertor.utils import load_task_instructions, select_task_for_episode
+
+class YourHdf5Convertor(Hdf5ToLeRobotConvertor):
+  def __init__(self) -> None:
+    super().__init__()
+    self._source_root = None
+    self._task_instructions_cache = None
+
+  def iter_source_episodes(self, source, options):
+    source_path = Path(source)
+    self._source_root = source_path if source_path.is_dir() else source_path.parent
+    self._task_instructions_cache = None
+    if options.augment_task_instruction:
+      self._task_instructions_cache = load_task_instructions(self._source_root)
+    return super().iter_source_episodes(source, options)
+
+  def extract_episode_from_file(self, file_obj, file_path, episode_id, options):
+    task = select_task_for_episode(
+      options=options,
+      source_root=self._source_root,
+      instructions=self._task_instructions_cache,
+    )
+    ...
+```
+
+工具行为说明：
+
+- 当 `augment_task_instruction=False` 时，直接返回 `default_task`
+- 当 `augment_task_instruction=True` 时，优先使用传入的 `instructions`，否则从 `<source>/tasks_instruction.json` 加载并随机选择任务文案
+- 若启用增强但文件不存在、为空或无有效字符串，会抛出明确异常
 
 ---
 
