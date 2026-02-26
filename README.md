@@ -219,6 +219,7 @@ python scripts/miku_hdf5_adapter.py \
   --augment_task_instruction tr
 ```
 此时需要在`--source <your original dataset path>`目录下创建`tasks_instruction.json`文件。
+
 ---
 
 ## 9. 常见问题
