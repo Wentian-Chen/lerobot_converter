@@ -1,3 +1,3 @@
-src/lerobot_converter/__pycache__/*
-src/lerobot_convertor/__pycache__/*
-scripts/__pycache__/*
+__pycache__/
+test_datasets/
+.vscode/
