@@ -46,10 +46,15 @@
 在项目目录安装（开发模式）：
 
 ```bash
+# conda
 conda create -n lerobot_converter python=3.8 -y
 conda activate lerobot_converter
 cd lerobot_converter/
 pip install -e .
+
+# uv
+uv sync
+uv pip install -e .
 ```
 
 运行 miku 示例：
