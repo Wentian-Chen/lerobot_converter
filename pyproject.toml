@@ -24,7 +24,8 @@ dependencies = [
   "draccus>=0.8.0",
   "numpy>=1.24",
   "h5py>=3.10",
-  "lerobot"
+  "lerobot",
+  "torchcodec>=0.10.0",
 ]
 
 [project.optional-dependencies]
@@ -39,3 +40,6 @@ packages = ["lerobot_converter"]
 
 [tool.setuptools.package-dir]
 lerobot_converter = "src/lerobot_converter"
+
+[tool.uv.sources]
+lerobot = { git = "https://github.com/huggingface/lerobot.git", rev = "v0.4.4" }

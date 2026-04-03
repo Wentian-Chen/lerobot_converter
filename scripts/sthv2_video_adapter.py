@@ -1,3 +1,16 @@
+"""
+uv run scripts/sthv2_video_adapter.py \
+    --source D:/gitdownload/datasets/sthv2 \
+    --output_dir D:/gitdownload/datasets/sthv2_lerobot_padding \
+    --dataset_name sthv2_lerobot_padding \
+    --image_mode center_crop \
+    --target_height 224 \
+    --target_width 224 \
+    --robot_type HumanVideo \
+    --use_videos True \
+    --fps 12 \
+    --max_episodes 500
+"""
 from dataclasses import dataclass
 from pathlib import Path
 import csv
@@ -63,11 +76,9 @@ class Sthv2VideoConverter(LeRobotDatasetConverter[str | Path]):
         options: ConversionOptions,
     ):
         source_dir = Path(source)
-        labels_zip_path = source_dir / "labels.zip"
+        labels_zip_path = self._resolve_labels_zip_path(source_dir)
         videos_tar_path = source_dir / "20bn-something-something-v2.tar.gz"
 
-        if not labels_zip_path.exists():
-            raise FileNotFoundError(f"labels.zip not found: {labels_zip_path}")
         if not videos_tar_path.exists():
             raise FileNotFoundError(f"20bn-something-something-v2.tar.gz not found: {videos_tar_path}")
 
@@ -91,6 +102,17 @@ class Sthv2VideoConverter(LeRobotDatasetConverter[str | Path]):
 
             if target_height <= 0 or target_width <= 0:
                 raise ValueError("Target image height/width must be positive integers.")
+
+            state_padding_vector = self._make_padding_vector(
+                options,
+                feature_key="observation.state",
+                default_size=7,
+            )
+            action_padding_vector = self._make_padding_vector(
+                options,
+                feature_key="action",
+                default_size=7,
+            )
 
             converted = 0
             skipped = 0
@@ -154,6 +176,8 @@ class Sthv2VideoConverter(LeRobotDatasetConverter[str | Path]):
                                 "timestamp": float(idx / options.fps),
                                 "feature_values": {
                                     "observation.images.image": chw,
+                                    "observation.state": state_padding_vector.copy(),
+                                    "action": action_padding_vector.copy(),
                                 },
                             }
                         )
@@ -214,6 +238,31 @@ class Sthv2VideoConverter(LeRobotDatasetConverter[str | Path]):
             return "validation"
         return split_norm
 
+    @staticmethod
+    def _resolve_labels_zip_path(source_dir: Path) -> Path:
+        for zip_name in ("labels.zip", "label.zip"):
+            zip_path = source_dir / zip_name
+            if zip_path.exists():
+                return zip_path
+        raise FileNotFoundError(
+            f"Neither labels.zip nor label.zip found under source directory: {source_dir}"
+        )
+
+    @staticmethod
+    def _make_padding_vector(
+        options: ConversionOptions,
+        feature_key: str,
+        default_size: int = 7,
+    ) -> np.ndarray:
+        feature = (options.features or {}).get(feature_key)
+        if isinstance(feature, dict):
+            shape = feature.get("shape")
+            if isinstance(shape, (list, tuple)) and len(shape) == 1:
+                size = int(shape[0])
+                if size > 0:
+                    return np.zeros((size,), dtype=np.float64)
+        return np.zeros((default_size,), dtype=np.float64)
+
     @classmethod
     def _load_instruction_map(
         cls,
@@ -236,20 +285,29 @@ class Sthv2VideoConverter(LeRobotDatasetConverter[str | Path]):
         id_to_text: dict[str, str] = {}
 
         with zipfile.ZipFile(labels_zip_path, mode="r") as zip_obj:
+            zip_names = set(zip_obj.namelist())
+
             def _load_json(name: str) -> list[dict[str, Any]]:
                 with zip_obj.open(name, mode="r") as fobj:
                     return json.load(io.TextIOWrapper(fobj, encoding="utf-8"))
 
-            split_files = []
-            if split in {"train", "all"}:
-                split_files.append("labels/train.json")
-            if split in {"validation", "all"}:
-                split_files.append("labels/validation.json")
-            if split in {"test", "all"}:
-                split_files.append("labels/test.json")
+            def _pick_existing_name(*candidates: str) -> str | None:
+                for candidate in candidates:
+                    if candidate in zip_names:
+                        return candidate
+                return None
 
-            for split_file in split_files:
-                if split_file not in zip_obj.namelist():
+            split_files: list[tuple[str, ...]] = []
+            if split in {"train", "all"}:
+                split_files.append(("labels/train.json", "train.json"))
+            if split in {"validation", "all"}:
+                split_files.append(("labels/validation.json", "validation.json"))
+            if split in {"test", "all"}:
+                split_files.append(("labels/test.json", "test.json"))
+
+            for split_file_candidates in split_files:
+                split_file = _pick_existing_name(*split_file_candidates)
+                if split_file is None:
                     continue
                 for item in _load_json(split_file):
                     video_id = str(item["id"])
@@ -264,8 +322,8 @@ class Sthv2VideoConverter(LeRobotDatasetConverter[str | Path]):
                     if text:
                         id_to_text[video_id] = text
 
-            answers_name = "labels/test-answers.csv"
-            if answers_name in zip_obj.namelist() and split in {"test", "all"}:
+            answers_name = _pick_existing_name("labels/test-answers.csv", "test-answers.csv")
+            if answers_name is not None and split in {"test", "all"}:
                 with zip_obj.open(answers_name, mode="r") as fobj:
                     reader = csv.reader(io.TextIOWrapper(fobj, encoding="utf-8"), delimiter=";")
                     for row in reader:
@@ -437,20 +495,57 @@ def run_sthv2_video_adapter(cfg: Sthv2VideoAdapterConfig):
         target_height, target_width = infer_first_frame_shape(cfg.source)
 
     feature = dict(options.features or {})
-    feature["observation.images.image"] = {
-        "dtype": "video",
-        "shape": (3, target_height, target_width),
-        "names": ["channels", "height", "width"],
-        "info": {
-            "video.height": target_height,
-            "video.width": target_width,
-            "video.codec": "av1",
-            "video.pix_fmt": "yuv420p",
-            "video.is_depth_map": False,
-            "video.fps": options.fps,
-            "video.channels": 3,
-            "has_audio": False,
-        },
+    
+    # Configure image feature based on use_videos flag
+    if options.use_videos:
+        feature["observation.images.image"] = {
+            "dtype": "video",
+            "shape": (3, target_height, target_width),
+            "names": ["channels", "height", "width"],
+            "info": {
+                "video.height": target_height,
+                "video.width": target_width,
+                "video.codec": "av1",
+                "video.pix_fmt": "yuv420p",
+                "video.is_depth_map": False,
+                "video.fps": options.fps,
+                "video.channels": 3,
+                "has_audio": False,
+            },
+        }
+    else:
+        # Use image dtype when not using videos
+        feature["observation.images.image"] = {
+            "dtype": "uint8",
+            "shape": (3, target_height, target_width),
+            "names": ["channels", "height", "width"],
+        }
+    
+    feature["observation.state"] = {
+        "dtype": "float64",
+        "shape": (7,),
+        "names": [
+            "state_padding_1",
+            "state_padding_2",
+            "state_padding_3",
+            "state_padding_4",
+            "state_padding_5",
+            "state_padding_6",
+            "state_padding_7",
+        ],
+    }
+    feature["action"] = {
+        "dtype": "float64",
+        "shape": (7,),
+        "names": [
+            "action_padding_1",
+            "action_padding_2",
+            "action_padding_3",
+            "action_padding_4",
+            "action_padding_5",
+            "action_padding_6",
+            "action_padding_7",
+        ],
     }
 
     options = ConversionOptions(
