@@ -25,7 +25,7 @@ dependencies = [
   "numpy>=1.24",
   "h5py>=3.10",
   "lerobot",
-  "torchcodec>=0.10.0",
+  "torchcodec>=0.10.0 ; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +34,11 @@ dev = [
   "ruff>=0.6",
   "mypy>=1.8"
 ]
+agibot = [
+    "imageio>=2.37.3",
+    "pyarrow>=23.0.1",
+]
+
 
 [tool.setuptools]
 packages = ["lerobot_converter"]
