@@ -1,5 +1,9 @@
 __pycache__/
 test_datasets/
 .vscode/
+<<<<<<< Updated upstream
 tests/*.png
 *egg-info/
+=======
+*.egg-info/
+>>>>>>> Stashed changes
